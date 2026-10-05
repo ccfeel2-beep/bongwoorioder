@@ -1,0 +1,43 @@
+{
+    "input_mappings": {
+        "딜픽": {
+            "cols": {
+                "수취인명": 1,
+                "수취인연락처": 2,
+                "수취인주소": 5,
+                "수량": 6,
+                "상품명": 7,
+                "배송메세지": 8,
+                "주문자명": 10,
+                "주문자연락처": 11,
+                "취합업체": null
+            },
+            "시작행": 2
+        },
+        "가람": {
+            "cols": {
+                "수취인명": 0,
+                "수취인연락처": 1,
+                "수취인주소": 4,
+                "수량": 5,
+                "상품명": 6,
+                "배송메세지": 7,
+                "주문자명": 9,
+                "주문자연락처": 10
+            },
+            "시작행": 2
+        }
+    },
+    "output_mapping": {
+        "수취인명": "A",
+        "수취인연락처": "B",
+        "수취인주소": "E",
+        "수량": "F",
+        "상품명": "G",
+        "배송메세지": "H",
+        "주문자명": "J",
+        "주문자연락처": "K",
+        "취합업체": "M"
+    },
+    "google_sheet_url": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSH7JVpfYwmhiP5zGEJHW-wIGSLUWyQkOeg_vertRL4XeKuCkXAZV3Nl99H1abKfIPpSkCEpX-lYQyy/pub?output=csv"
+}
