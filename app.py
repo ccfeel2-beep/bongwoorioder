@@ -18,10 +18,10 @@ def load_settings():
             "수취인명": "A", "수취인연락처": "B", "수취인주소": "E", 
             "수량": "F", "상품명": "D", "배송메세지": "H", 
             "주문자명": "J", "주문자연락처": "K", "취합업체": "M",
-            "번호": "N", "보내는 주소": "O", "업체명2": "P" # [신규] 고정값 열 추가
+            "번호": "N", "보내는 주소": "O", "업체명2": "P"
         },
         "fixed_values": {
-            "sender_address": "경기 남양주시 화도읍 답내리 220-2(디더블유대)" # [신규] 고정 주소 텍스트
+            "sender_address": "경기 남양주시 화도읍 답내리 220-2(디더블유대)"
         },
         "google_sheet_url": ""
     }
@@ -29,7 +29,6 @@ def load_settings():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            # 기존 설정 파일에 없는 신규 항목 자동 병합
             for k, v in default_settings["output_mapping"].items():
                 if k not in data.get("output_mapping", {}):
                     data.setdefault("output_mapping", {})[k] = v
@@ -122,13 +121,12 @@ with tab4:
                 st.dataframe(pd.DataFrame(list(dict_test.items()), columns=["원본 상품명", "변환될 상품명"]))
 
 # ==========================================
-# 탭 2: 거래처 양식 관리
+# 탭 2: 거래처 양식 관리 (백업 다운로드 기능 추가)
 # ==========================================
 with tab2:
     st.header("⚙ 거래처(입력) 양식 관리")
     col_list, col_edit = st.columns([1, 2])
     
-    # [수정됨] 업체 목록 가나다라 순 정렬
     comp_list = sorted(list(st.session_state.settings["input_mappings"].keys()))
     
     with col_list:
@@ -138,6 +136,18 @@ with tab2:
             del st.session_state.settings["input_mappings"][selected_comp]
             save_settings(st.session_state.settings)
             st.rerun()
+            
+        st.write("---")
+        # [신규] 서버에 쌓인 최신 설정을 내 컴퓨터로 다운로드하는 백업 버튼
+        st.subheader("📥 설정 파일 백업")
+        current_settings_json = json.dumps(st.session_state.settings, ensure_ascii=False, indent=4)
+        st.download_button(
+            label="💾 현재 설정 파일(json) 다운로드",
+            data=current_settings_json,
+            file_name="web_settings.json",
+            mime="application/json",
+            help="웹에서 새로 등록한 업체 양식들을 내 컴퓨터로 내려받아 깃허브에 덮어쓰기 백업하세요."
+        )
 
     with col_edit:
         st.subheader("양식 상세 설정")
@@ -146,7 +156,6 @@ with tab2:
         
         st.write("엑셀에서 데이터가 있는 열(A, B, C...) 알파벳을 입력하세요.")
         
-        # [수정됨] 자동 생성되는 항목은 입력 화면에서 제외
         exclude_fields = ["취합업체", "번호", "보내는 주소", "업체명2"]
         fields = [f for f in st.session_state.settings["output_mapping"].keys() if f not in exclude_fields]
         entries = {}
@@ -180,10 +189,8 @@ with tab1:
     
     if uploaded_files:
         st.write("---")
-        # [수정됨] 업체 목록 가나다라 순 정렬
         comp_list = sorted(list(st.session_state.settings["input_mappings"].keys()))
         
-        # [신규] 드래그 대신 버튼으로 순서를 조정하기 위한 세션 상태 관리
         if 'file_order' not in st.session_state:
             st.session_state.file_order = []
         if 'last_uploaded_names' not in st.session_state:
@@ -191,9 +198,7 @@ with tab1:
 
         current_names = {f.name for f in uploaded_files}
         if current_names != st.session_state.last_uploaded_names:
-            # 삭제된 파일 제거
             st.session_state.file_order = [f for f in st.session_state.file_order if f in current_names]
-            # 새로 추가된 파일 맨 뒤에 붙이기
             for f in uploaded_files:
                 if f.name not in st.session_state.file_order:
                     st.session_state.file_order.append(f.name)
@@ -204,7 +209,6 @@ with tab1:
         
         st.write("💡 **위아래 화살표(🔼/🔽)를 눌러 최종 엑셀에서 합쳐질 파일의 순서를 변경할 수 있습니다.**")
         
-        # [신규] 순서 조정 UI
         for i, fname in enumerate(st.session_state.file_order):
             col_btn, col_name, col_sel = st.columns([1, 4, 3])
             
@@ -231,7 +235,6 @@ with tab1:
             prod_dict = load_product_dict(st.session_state.settings.get("google_sheet_url", ""))
             
             with st.spinner('파일을 병합하고 상품명을 변환하는 중...'):
-                # [수정됨] 사용자가 정렬한 순서(st.session_state.file_order)대로 취합 진행
                 for fname in st.session_state.file_order:
                     file = file_dict[fname]
                     comp = file_company_map[fname]
@@ -249,7 +252,7 @@ with tab1:
                         row_data = {}
                         for field in st.session_state.settings["output_mapping"].keys():
                             if field in ["취합업체", "번호", "보내는 주소", "업체명2"]:
-                                continue # 나중에 고정값으로 채움
+                                continue
                                 
                             c = m['cols'].get(field)
                             if c is not None and c in row.index:
@@ -288,7 +291,6 @@ with tab1:
                 final_cols = [num_to_col(i) for i in range(max_col_num + 1)]
                 final_df = pd.DataFrame(columns=final_cols)
                 
-                # [수정됨] 설정된 최종 출력 열에 맞게 모든 값 할당 (번호, 보내는 주소 등 동적 할당)
                 sender_address_text = st.session_state.settings.get("fixed_values", {}).get("sender_address", "")
                 
                 for idx, row_data in enumerate(all_rows):
@@ -296,7 +298,6 @@ with tab1:
                         if target_col:
                             clean_col = re.sub(r'[^A-Za-z]', '', target_col).upper()
                             if clean_col:
-                                # 항목별 특수 데이터 처리
                                 if field == "번호":
                                     val = idx + 1
                                 elif field == "보내는 주소":
