@@ -184,8 +184,8 @@ with tab2:
 with tab1:
     st.header("📦 엑셀 파일 대량 취합")
     
-    # [수정] 최신 엑셀 포맷인 xlsx만 업로드 가능하도록 제한 (xlrd 구형 오류 원천 차단)
-    uploaded_files = st.file_uploader("취합할 엑셀 파일(.xlsx)들을 드래그해서 올려주세요", type=["xlsx"], accept_multiple_files=True)
+    # xlsx, xls 파일 모두 업로드 가능하도록 설정
+    uploaded_files = st.file_uploader("취합할 엑셀 파일들을 드래그해서 올려주세요", type=["xlsx", "xls"], accept_multiple_files=True)
     
     if uploaded_files:
         st.write("---")
@@ -241,17 +241,20 @@ with tab1:
                     if comp == "-- 선택 --": continue
                     
                     m = st.session_state.settings["input_mappings"][comp]
-                    # [수정] openpyxl 엔진을 명시하여 오류 원천 차단
-                   try:
-    # 1차 시도: 일반/구형(.xls) 파일 대응
-    df = pd.read_excel(file, header=None)
-except Exception:
-    try:
-        # 2차 시도: openpyxl 엔진 강제 사용 (.xlsx)
-        df = pd.read_excel(file, header=None, engine='openpyxl')
-    except Exception:
-        # 3차 시도: xlrd 엔진 강제 사용 (.xls)
-        df = pd.read_excel(file, header=None, engine='xlrd')
+                    
+                    # --- [핵심 수정] 엑셀 엔진 에러 3중 방어 로직 ---
+                    try:
+                        file.seek(0)
+                        df = pd.read_excel(file, header=None, engine='openpyxl')
+                    except Exception:
+                        try:
+                            file.seek(0)
+                            df = pd.read_excel(file, header=None, engine='xlrd')
+                        except Exception:
+                            file.seek(0)
+                            df = pd.read_excel(file, header=None)
+                    # ---------------------------------------------
+                    
                     data_df = df.iloc[m['시작행'] - 1:]
                     
                     for _, row in data_df.iterrows():
