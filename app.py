@@ -144,8 +144,7 @@ with tab2:
             label="💾 현재 설정 파일(json) 다운로드",
             data=current_settings_json,
             file_name="web_settings.json",
-            mime="application/json",
-            help="웹에서 새로 등록한 업체 양식들을 내 컴퓨터로 내려받아 깃허브에 덮어쓰기 백업하세요."
+            mime="application/json"
         )
 
     with col_edit:
@@ -184,7 +183,6 @@ with tab2:
 with tab1:
     st.header("📦 엑셀 파일 대량 취합")
     
-    # xlsx, xls 파일 모두 업로드 가능하도록 설정
     uploaded_files = st.file_uploader("취합할 엑셀 파일들을 드래그해서 올려주세요", type=["xlsx", "xls"], accept_multiple_files=True)
     
     if uploaded_files:
@@ -242,19 +240,30 @@ with tab1:
                     
                     m = st.session_state.settings["input_mappings"][comp]
                     
-                    # --- [핵심 수정] 엑셀 엔진 에러 3중 방어 로직 ---
+                    df = None
+                    file.seek(0)
                     try:
-                        file.seek(0)
                         df = pd.read_excel(file, header=None, engine='openpyxl')
                     except Exception:
                         try:
                             file.seek(0)
                             df = pd.read_excel(file, header=None, engine='xlrd')
+                        except ImportError:
+                            st.error("서버에 xlrd 부품이 없습니다. Streamlit 앱을 지웠다가 다시 만들어주세요!")
+                            st.stop()
                         except Exception:
-                            file.seek(0)
-                            df = pd.read_excel(file, header=None)
-                    # ---------------------------------------------
+                            try:
+                                file.seek(0)
+                                html_data = file.getvalue().decode('utf-8', errors='ignore')
+                                dfs = pd.read_html(html_data)
+                                df = dfs[0]
+                            except Exception:
+                                st.error(f"⚠️ '{fname}' 파일을 읽을 수 없습니다. 엑셀 파일이 손상되었거나 알 수 없는 형식입니다.")
+                                continue
                     
+                    if df is None or df.empty:
+                        continue
+                        
                     data_df = df.iloc[m['시작행'] - 1:]
                     
                     for _, row in data_df.iterrows():
@@ -344,6 +353,12 @@ with tab1:
                     workbook = writer.book
                     worksheet = writer.sheets['Sheet1']
                     orange_format = workbook.add_format({'bg_color': '#F4B084'})
+                    
+                    # --- [신규 기능] 첫 번째 행(헤더)에 자동 필터 적용 ---
+                    max_row = len(final_df)
+                    max_col = len(final_df.columns) - 1
+                    worksheet.autofilter(0, 0, max_row, max_col)
+                    # ----------------------------------------------------
                     
                     prod_col_letter = out_map.get("상품명", "")
                     clean_prod_col = re.sub(r'[^A-Za-z]', '', prod_col_letter).upper()
