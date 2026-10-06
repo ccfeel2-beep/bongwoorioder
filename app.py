@@ -121,7 +121,7 @@ with tab4:
                 st.dataframe(pd.DataFrame(list(dict_test.items()), columns=["원본 상품명", "변환될 상품명"]))
 
 # ==========================================
-# 탭 2: 거래처 양식 관리 (백업 다운로드 기능 추가)
+# 탭 2: 거래처 양식 관리
 # ==========================================
 with tab2:
     st.header("⚙ 거래처(입력) 양식 관리")
@@ -138,7 +138,6 @@ with tab2:
             st.rerun()
             
         st.write("---")
-        # [신규] 서버에 쌓인 최신 설정을 내 컴퓨터로 다운로드하는 백업 버튼
         st.subheader("📥 설정 파일 백업")
         current_settings_json = json.dumps(st.session_state.settings, ensure_ascii=False, indent=4)
         st.download_button(
@@ -185,7 +184,8 @@ with tab2:
 with tab1:
     st.header("📦 엑셀 파일 대량 취합")
     
-    uploaded_files = st.file_uploader("취합할 엑셀 파일들을 드래그해서 올려주세요", type=["xlsx", "xls"], accept_multiple_files=True)
+    # [수정] 최신 엑셀 포맷인 xlsx만 업로드 가능하도록 제한 (xlrd 구형 오류 원천 차단)
+    uploaded_files = st.file_uploader("취합할 엑셀 파일(.xlsx)들을 드래그해서 올려주세요", type=["xlsx"], accept_multiple_files=True)
     
     if uploaded_files:
         st.write("---")
@@ -241,7 +241,8 @@ with tab1:
                     if comp == "-- 선택 --": continue
                     
                     m = st.session_state.settings["input_mappings"][comp]
-                    df = pd.read_excel(file, header=None)
+                    # [수정] openpyxl 엔진을 명시하여 오류 원천 차단
+                    df = pd.read_excel(file, header=None, engine='openpyxl')
                     data_df = df.iloc[m['시작행'] - 1:]
                     
                     for _, row in data_df.iterrows():
