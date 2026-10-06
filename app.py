@@ -316,6 +316,7 @@ with tab1:
                 sender_address_text = st.session_state.settings.get("fixed_values", {}).get("sender_address", "")
                 
                 for idx, row_data in enumerate(all_rows):
+                    excel_row_num = idx + 2  # 엑셀은 1행이 헤더이므로 데이터는 2행부터 시작
                     for field, target_col in out_map.items():
                         if target_col:
                             clean_col = re.sub(r'[^A-Za-z]', '', target_col).upper()
@@ -325,7 +326,8 @@ with tab1:
                                 elif field == "보내는 주소":
                                     val = sender_address_text
                                 elif field == "업체명2":
-                                    val = row_data.get("취합업체", "")
+                                    # [수정] 단순 텍스트 대신 엑셀 수식(=M2, =M3...) 입력
+                                    val = f"=M{excel_row_num}"
                                 else:
                                     val = row_data.get(field, "")
                                     
@@ -354,11 +356,10 @@ with tab1:
                     worksheet = writer.sheets['Sheet1']
                     orange_format = workbook.add_format({'bg_color': '#F4B084'})
                     
-                    # --- [신규 기능] 첫 번째 행(헤더)에 자동 필터 적용 ---
+                    # 첫 번째 행(헤더)에 자동 필터 적용
                     max_row = len(final_df)
                     max_col = len(final_df.columns) - 1
                     worksheet.autofilter(0, 0, max_row, max_col)
-                    # ----------------------------------------------------
                     
                     prod_col_letter = out_map.get("상품명", "")
                     clean_prod_col = re.sub(r'[^A-Za-z]', '', prod_col_letter).upper()
