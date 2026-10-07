@@ -5,6 +5,10 @@ import os
 import string
 import re
 from io import BytesIO
+import io
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 st.set_page_config(page_title="봉우리 스마트 발주 통합 시스템", layout="wide")
 
@@ -77,7 +81,15 @@ def load_product_dict(url):
 
 # --- 메인 화면 탭 구성 ---
 st.title("🍎 봉우리 스마트 발주 통합 시스템 (Web Ver.)")
-tab1, tab2, tab3, tab4 = st.tabs(["📦 대량 취합 실행", "⚙️ 거래처 양식 관리", "🛠️ 최종 출력 양식 관리", "🔗 구글 시트 연동"])
+
+# 기존 4개 탭에서 5개 탭으로 확장
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📦 대량 취합 실행", 
+    "⚙️ 거래처 양식 관리", 
+    "🛠️ 최종 출력 양식 관리", 
+    "🔗 구글 시트 연동",
+    "🚚 송장 정돈 및 검수"
+])
 
 # ==========================================
 # 탭 3: 최종 출력 양식 관리
@@ -121,7 +133,7 @@ with tab4:
                 st.dataframe(pd.DataFrame(list(dict_test.items()), columns=["원본 상품명", "변환될 상품명"]))
 
 # ==========================================
-# 탭 2: 거래처 양식 관리 (수정창 캐싱 문제 완벽 해결)
+# 탭 2: 거래처 양식 관리
 # ==========================================
 with tab2:
     st.header("⚙ 거래처(입력) 양식 관리")
@@ -150,7 +162,6 @@ with tab2:
     with col_edit:
         st.subheader("양식 상세 설정")
         
-        # 선택된 업체에 맞춰 key를 동적으로 변경해 입력창 즉시 새로고침
         default_comp_name = "" if selected_comp == "-- 신규 추가 --" else selected_comp
         default_start_row = 2
         if selected_comp != "-- 신규 추가 --":
@@ -174,7 +185,6 @@ with tab2:
                 curr_val = num_to_col(c_num) if c_num is not None else ""
             
             with edit_cols[i % 2]:
-                # key에 selected_comp를 포함시켜 드롭다운 변경 시 입력 칸들의 값도 완벽하게 동기화되도록 고침
                 entries[f] = st.text_input(f, value=curr_val, key=f"in_{f}_{selected_comp}")
 
         if st.button("💾 업체 양식 저장"):
@@ -397,3 +407,81 @@ with tab1:
                 )
             else:
                 st.warning("선택된 파일에서 유효한 데이터를 찾지 못했습니다.")
+
+# ==========================================
+# 탭 5: 송장 정돈 및 검수 (추가된 기능)
+# ==========================================
+with tab5:
+    st.header("🚚 송장 원본 정돈 및 연계비용 검수")
+    st.write("CJ택배 송장 원본 엑셀(1차 종합-송장)을 업로드하면 필요한 열 추출/정렬 및 연계비용 강조 파일로 자동 변환합니다.")
+
+    uploaded_file = st.file_uploader("1차 종합-송장 원본 엑셀 파일 업로드", type=["xlsx", "xls"], key="tab5_invoice_file")
+
+    if uploaded_file is not None:
+        try:
+            # 1. 원본 데이터 읽기
+            df = pd.read_excel(uploaded_file)
+
+            # 추출할 10개 열 지정 및 순서 정의
+            target_cols = [
+                '운송장번호', '수하인명', '수하인기본주소', '송하인명', 
+                'A', '상품명', '상품코드', '주문번호', '쇼핑몰', '연계비용'
+            ]
+
+            available_cols = [col for col in target_cols if col in df.columns]
+            df_filtered = df[available_cols].copy()
+
+            # 2. 상품코드 숫자형 변환 및 오름차순 정렬
+            if '상품코드' in df_filtered.columns:
+                df_filtered['상품코드'] = pd.to_numeric(df_filtered['상품코드'], errors='coerce')
+                df_filtered = df_filtered.sort_values(by='상품코드', ascending=True)
+
+            st.success(f"총 {len(df_filtered)}건의 데이터가 성공적으로 정돈되었습니다.")
+
+            # 웹 화면 화면 표시 (연계비용 170 초과 시 화면에서도 노란색 강조)
+            def highlight_cost(row):
+                if '연계비용' in row and pd.notnull(row['연계비용']) and float(row['연계비용']) > 170:
+                    return ['background-color: #FFFF99'] * len(row)
+                return [''] * len(row)
+
+            st.dataframe(df_filtered.style.apply(highlight_cost, axis=1), use_container_width=True)
+
+            # 3. openpyxl을 활용하여 엑셀 셀 배경색(노란색) 적용
+            output = io.BytesIO()
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "송장정리"
+
+            # 데이터 적재
+            for r in dataframe_to_rows(df_filtered, index=False, header=True):
+                ws.append(r)
+
+            # 노란색 서식 지정
+            yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+
+            if '연계비용' in available_cols:
+                cost_col_idx = available_cols.index('연계비용') + 1
+
+                for row in range(2, ws.max_row + 1):
+                    val = ws.cell(row=row, column=cost_col_idx).value
+                    if val is not None:
+                        try:
+                            if float(val) > 170:
+                                for col in range(1, len(available_cols) + 1):
+                                    ws.cell(row=row, column=col).fill = yellow_fill
+                        except ValueError:
+                            pass
+
+            wb.save(output)
+            output.seek(0)
+
+            # 4. 수정본 다운로드 버튼
+            st.download_button(
+                label="📥 정돈된 송장 엑셀 파일 다운로드",
+                data=output,
+                file_name="1차 종합-송장(수정).xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        except Exception as e:
+            st.error(f"파일 처리 중 오류가 발생했습니다: {e}")
