@@ -149,8 +149,15 @@ with tab2:
 
     with col_edit:
         st.subheader("양식 상세 설정")
-        comp_name = st.text_input("업체명", value="" if selected_comp == "-- 신규 추가 --" else selected_comp)
-        start_row = st.number_input("데이터 시작 행 (숫자)", min_value=1, value=st.session_state.settings["input_mappings"].get(selected_comp, {}).get("시작행", 2) if selected_comp != "-- 신규 추가 --" else 2)
+        
+        # [수정] 기존 등록된 업체를 선택했을 때 기본값이 자동으로 채워지도록 설정
+        default_comp_name = "" if selected_comp == "-- 신규 추가 --" else selected_comp
+        default_start_row = 2
+        if selected_comp != "-- 신규 추가 --":
+            default_start_row = st.session_state.settings["input_mappings"].get(selected_comp, {}).get("시작행", 2)
+
+        comp_name = st.text_input("업체명", value=default_comp_name)
+        start_row = st.number_input("데이터 시작 행 (숫자)", min_value=1, value=int(default_start_row))
         
         st.write("엑셀에서 데이터가 있는 열(A, B, C...) 알파벳을 입력하세요.")
         
@@ -162,8 +169,10 @@ with tab2:
         for i, f in enumerate(fields):
             curr_val = ""
             if selected_comp != "-- 신규 추가 --":
-                c_num = st.session_state.settings["input_mappings"][selected_comp]["cols"].get(f)
+                comp_data = st.session_state.settings["input_mappings"].get(selected_comp, {})
+                c_num = comp_data.get("cols", {}).get(f)
                 curr_val = num_to_col(c_num) if c_num is not None else ""
+            
             with edit_cols[i % 2]:
                 entries[f] = st.text_input(f, value=curr_val, key=f"in_{f}")
 
@@ -316,7 +325,7 @@ with tab1:
                 sender_address_text = st.session_state.settings.get("fixed_values", {}).get("sender_address", "")
                 
                 for idx, row_data in enumerate(all_rows):
-                    excel_row_num = idx + 2  # 엑셀은 1행이 헤더이므로 데이터는 2행부터 시작
+                    excel_row_num = idx + 2
                     for field, target_col in out_map.items():
                         if target_col:
                             clean_col = re.sub(r'[^A-Za-z]', '', target_col).upper()
@@ -326,7 +335,6 @@ with tab1:
                                 elif field == "보내는 주소":
                                     val = sender_address_text
                                 elif field == "업체명2":
-                                    # [수정] 단순 텍스트 대신 엑셀 수식(=M2, =M3...) 입력
                                     val = f"=M{excel_row_num}"
                                 else:
                                     val = row_data.get(field, "")
@@ -356,7 +364,6 @@ with tab1:
                     worksheet = writer.sheets['Sheet1']
                     orange_format = workbook.add_format({'bg_color': '#F4B084'})
                     
-                    # 첫 번째 행(헤더)에 자동 필터 적용
                     max_row = len(final_df)
                     max_col = len(final_df.columns) - 1
                     worksheet.autofilter(0, 0, max_row, max_col)
