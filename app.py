@@ -121,7 +121,7 @@ with tab4:
                 st.dataframe(pd.DataFrame(list(dict_test.items()), columns=["원본 상품명", "변환될 상품명"]))
 
 # ==========================================
-# 탭 2: 거래처 양식 관리
+# 탭 2: 거래처 양식 관리 (수정창 캐싱 문제 완벽 해결)
 # ==========================================
 with tab2:
     st.header("⚙ 거래처(입력) 양식 관리")
@@ -150,14 +150,14 @@ with tab2:
     with col_edit:
         st.subheader("양식 상세 설정")
         
-        # [수정] 기존 등록된 업체를 선택했을 때 기본값이 자동으로 채워지도록 설정
+        # 선택된 업체에 맞춰 key를 동적으로 변경해 입력창 즉시 새로고침
         default_comp_name = "" if selected_comp == "-- 신규 추가 --" else selected_comp
         default_start_row = 2
         if selected_comp != "-- 신규 추가 --":
             default_start_row = st.session_state.settings["input_mappings"].get(selected_comp, {}).get("시작행", 2)
 
-        comp_name = st.text_input("업체명", value=default_comp_name)
-        start_row = st.number_input("데이터 시작 행 (숫자)", min_value=1, value=int(default_start_row))
+        comp_name = st.text_input("업체명", value=default_comp_name, key=f"comp_name_{selected_comp}")
+        start_row = st.number_input("데이터 시작 행 (숫자)", min_value=1, value=int(default_start_row), key=f"start_row_{selected_comp}")
         
         st.write("엑셀에서 데이터가 있는 열(A, B, C...) 알파벳을 입력하세요.")
         
@@ -174,7 +174,8 @@ with tab2:
                 curr_val = num_to_col(c_num) if c_num is not None else ""
             
             with edit_cols[i % 2]:
-                entries[f] = st.text_input(f, value=curr_val, key=f"in_{f}")
+                # key에 selected_comp를 포함시켜 드롭다운 변경 시 입력 칸들의 값도 완벽하게 동기화되도록 고침
+                entries[f] = st.text_input(f, value=curr_val, key=f"in_{f}_{selected_comp}")
 
         if st.button("💾 업체 양식 저장"):
             if comp_name:
