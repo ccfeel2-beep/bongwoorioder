@@ -411,6 +411,9 @@ with tab1:
 # ==========================================
 # 탭 5: 송장 정돈 및 검수 (추가된 기능)
 # ==========================================
+# ==========================================
+# 탭 5: 송장 정돈 및 검수
+# ==========================================
 with tab5:
     st.header("🚚 송장 원본 정돈 및 연계비용 검수")
     st.write("CJ택배 송장 원본 엑셀(1차 종합-송장)을 업로드하면 필요한 열 추출/정렬 및 연계비용 강조 파일로 자동 변환합니다.")
@@ -419,8 +422,12 @@ with tab5:
 
     if uploaded_file is not None:
         try:
-            # 1. 원본 데이터 읽기
-            df = pd.read_excel(uploaded_file)
+            # 1. 원본 데이터 읽기 (운송장번호, 주문번호, 상품코드 등이 지수표기법으로 깨지지 않도록 문자열(str)로 강제 로드)
+            df = pd.read_excel(uploaded_file, dtype={
+                '운송장번호': str, 
+                '주문번호': str, 
+                '상품코드': str
+            })
 
             # 추출할 10개 열 지정 및 순서 정의
             target_cols = [
@@ -431,14 +438,15 @@ with tab5:
             available_cols = [col for col in target_cols if col in df.columns]
             df_filtered = df[available_cols].copy()
 
-            # 2. 상품코드 숫자형 변환 및 오름차순 정렬
+            # 2. 정렬을 위해 상품코드만 임시 숫자로 변환하여 정렬 기준 마련 (출력 시에는 문자열 유지)
             if '상품코드' in df_filtered.columns:
-                df_filtered['상품코드'] = pd.to_numeric(df_filtered['상품코드'], errors='coerce')
-                df_filtered = df_filtered.sort_values(by='상품코드', ascending=True)
+                df_filtered['_temp_sort_code'] = pd.to_numeric(df_filtered['상품코드'], errors='coerce')
+                df_filtered = df_filtered.sort_values(by='_temp_sort_code', ascending=True)
+                df_filtered = df_filtered.drop(columns=['_temp_sort_code'])
 
             st.success(f"총 {len(df_filtered)}건의 데이터가 성공적으로 정돈되었습니다.")
 
-            # 웹 화면 화면 표시 (연계비용 170 초과 시 화면에서도 노란색 강조)
+            # 웹 화면 표시 (연계비용 170 초과 시 화면에서도 노란색 강조)
             def highlight_cost(row):
                 if '연계비용' in row and pd.notnull(row['연계비용']) and float(row['연계비용']) > 170:
                     return ['background-color: #FFFF99'] * len(row)
@@ -446,15 +454,38 @@ with tab5:
 
             st.dataframe(df_filtered.style.apply(highlight_cost, axis=1), use_container_width=True)
 
-            # 3. openpyxl을 활용하여 엑셀 셀 배경색(노란색) 적용
+            # 3. openpyxl을 활용하여 엑셀 셀 배경색(노란색) 적용, 문자열 서식 고정 및 필터 추가
             output = io.BytesIO()
             wb = Workbook()
             ws = wb.active
             ws.title = "송장정리"
 
-            # 데이터 적재
-            for r in dataframe_to_rows(df_filtered, index=False, header=True):
-                ws.append(r)
+            # 헤더 작성
+            headers = list(df_filtered.columns)
+            ws.append(headers)
+
+            # 데이터 적재 시 텍스트로 안전하게 입력
+            for _, r in df_filtered.iterrows():
+                row_values = []
+                for col in headers:
+                    val = r[col]
+                    if pd.isna(val):
+                        row_values.append("")
+                    else:
+                        row_values.append(str(val))
+                ws.append(row_values)
+
+            # 운송장번호, 주문번호, 상품코드 열 엑셀 서식을 텍스트(@)로 지정하여 지수표기법 방지
+            for col_idx, col_name in enumerate(headers, start=1):
+                if col_name in ['운송장번호', '주문번호', '상품코드']:
+                    for row in range(2, ws.max_row + 1):
+                        ws.cell(row=row, column=col_idx).number_format = '@'
+
+            # 1행에 자동 필터(AutoFilter) 설정
+            if ws.max_row >= 1 and ws.max_column >= 1:
+                from openpyxl.utils import get_column_letter
+                max_col_letter = get_column_letter(ws.max_column)
+                ws.auto_filter.ref = f"A1:{max_col_letter}{ws.max_row}"
 
             # 노란색 서식 지정
             yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
