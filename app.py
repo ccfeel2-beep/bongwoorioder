@@ -408,9 +408,7 @@ with tab1:
             else:
                 st.warning("선택된 파일에서 유효한 데이터를 찾지 못했습니다.")
 
-# ==========================================
-# 탭 5: 송장 정돈 및 검수 (추가된 기능)
-# ==========================================
+
 # ==========================================
 # 탭 5: 송장 정돈 및 검수
 # ==========================================
@@ -422,11 +420,10 @@ with tab5:
 
     if uploaded_file is not None:
         try:
-            # 1. 원본 데이터 읽기 (운송장번호, 주문번호, 상품코드 등이 지수표기법으로 깨지지 않도록 문자열(str)로 강제 로드)
+            # 1. 원본 데이터 읽기 (운송장번호와 주문번호는 지수표기법 방지를 위해 문자열로, 상품코드는 숫자로 로드)
             df = pd.read_excel(uploaded_file, dtype={
                 '운송장번호': str, 
-                '주문번호': str, 
-                '상품코드': str
+                '주문번호': str
             })
 
             # 추출할 10개 열 지정 및 순서 정의
@@ -438,11 +435,10 @@ with tab5:
             available_cols = [col for col in target_cols if col in df.columns]
             df_filtered = df[available_cols].copy()
 
-            # 2. 정렬을 위해 상품코드만 임시 숫자로 변환하여 정렬 기준 마련 (출력 시에는 문자열 유지)
+            # 2. 상품코드 숫자형 변환 및 오름차순 정렬
             if '상품코드' in df_filtered.columns:
-                df_filtered['_temp_sort_code'] = pd.to_numeric(df_filtered['상품코드'], errors='coerce')
-                df_filtered = df_filtered.sort_values(by='_temp_sort_code', ascending=True)
-                df_filtered = df_filtered.drop(columns=['_temp_sort_code'])
+                df_filtered['상품코드'] = pd.to_numeric(df_filtered['상품코드'], errors='coerce')
+                df_filtered = df_filtered.sort_values(by='상품코드', ascending=True)
 
             st.success(f"총 {len(df_filtered)}건의 데이터가 성공적으로 정돈되었습니다.")
 
@@ -454,7 +450,7 @@ with tab5:
 
             st.dataframe(df_filtered.style.apply(highlight_cost, axis=1), use_container_width=True)
 
-            # 3. openpyxl을 활용하여 엑셀 셀 배경색(노란색) 적용, 문자열 서식 고정 및 필터 추가
+            # 3. openpyxl을 활용하여 엑셀 셀 서식 적용 (상품코드는 숫자, 운송장/주문번호는 텍스트)
             output = io.BytesIO()
             wb = Workbook()
             ws = wb.active
@@ -464,22 +460,30 @@ with tab5:
             headers = list(df_filtered.columns)
             ws.append(headers)
 
-            # 데이터 적재 시 텍스트로 안전하게 입력
+            # 데이터 적재
             for _, r in df_filtered.iterrows():
                 row_values = []
                 for col in headers:
                     val = r[col]
                     if pd.isna(val):
                         row_values.append("")
+                    elif col == '상품코드':
+                        try:
+                            row_values.append(int(val) if float(val).is_integer() else float(val))
+                        except ValueError:
+                            row_values.append(val)
                     else:
                         row_values.append(str(val))
                 ws.append(row_values)
 
-            # 운송장번호, 주문번호, 상품코드 열 엑셀 서식을 텍스트(@)로 지정하여 지수표기법 방지
+            # 열별 셀 서식 지정 (운송장번호/주문번호는 텍스트, 상품코드는 숫자 형식)
             for col_idx, col_name in enumerate(headers, start=1):
-                if col_name in ['운송장번호', '주문번호', '상품코드']:
+                if col_name in ['운송장번호', '주문번호']:
                     for row in range(2, ws.max_row + 1):
                         ws.cell(row=row, column=col_idx).number_format = '@'
+                elif col_name == '상품코드':
+                    for row in range(2, ws.max_row + 1):
+                        ws.cell(row=row, column=col_idx).number_format = '#,##0'
 
             # 1행에 자동 필터(AutoFilter) 설정
             if ws.max_row >= 1 and ws.max_column >= 1:
