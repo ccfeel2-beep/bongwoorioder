@@ -414,9 +414,9 @@ with tab1:
 # ==========================================
 with tab5:
     st.header("🚚 송장 원본 정돈 및 연계비용 검수")
-    st.write("CJ택배 송장 원본 엑셀(1차 종합-송장)을 업로드하면 필요한 열 추출/정렬 및 연계비용 강조 파일로 자동 변환합니다.")
+    st.write("송장 원본 엑셀을 업로드하면 필요한 열 추출/정렬 및 연계비용 강조 파일로 자동 변환합니다.")
 
-    uploaded_file = st.file_uploader("1차 종합-송장 원본 엑셀 파일 업로드", type=["xlsx", "xls"], key="tab5_invoice_file")
+    uploaded_file = st.file_uploader("송장 원본 엑셀 파일 업로드", type=["xlsx", "xls"], key="tab5_invoice_file")
 
     if uploaded_file is not None:
         try:
