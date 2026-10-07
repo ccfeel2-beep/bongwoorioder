@@ -514,7 +514,7 @@ with tab5:
             st.download_button(
                 label="📥 정돈된 송장 엑셀 파일 다운로드",
                 data=output,
-                file_name="1차 종합-송장(수정).xlsx",
+                file_name="정돈된 엑셀 파일.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
